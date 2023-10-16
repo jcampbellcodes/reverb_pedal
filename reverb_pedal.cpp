@@ -11,10 +11,14 @@ Oscillator osc;
 AdEnv      env;
 Metro      tick;
 
+Parameter /*vtime, vfreq,*/ vsend;
+AnalogControl wetDryKnob;
+
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
               AudioHandle::InterleavingOutputBuffer out,
               size_t                                size)
 {
+	vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
     //hw.ProcessDigitalControls();
     // verb.SetFeedback(vtime.Process());
@@ -27,8 +31,8 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
     {
         dryl  = in[i];
         dryr  = in[i + 1];
-        sendl = dryl * 0.45; //vsend.Value();
-        sendr = dryr * 0.45; //vsend.Value();
+        sendl = dryl * vsend.Value();
+        sendr = dryr * vsend.Value();
         verb.Process(sendl, sendr, &wetl, &wetr);
         // if(bypass)
         // {
@@ -73,6 +77,19 @@ int main(void)
     osc.SetFreq(440.f);
     osc.SetWaveform(Oscillator::WAVE_TRI);
 
+    //This is our ADC configuration
+    AdcChannelConfig adcConfig;
+    //Configure pin 21 as an ADC input. This is where we'll read the knob.
+    adcConfig.InitSingle(hw.GetPin(21));
+    //Initialize the adc with the config we just made
+    hw.adc.Init(&adcConfig, 1);
+
+    wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
+    vsend.Init(wetDryKnob, 0.0f, 1.0f, Parameter::LINEAR);
+
+    //Start reading values
+    hw.adc.Start();
+
 	// Declare a variable to store the state we want to set for the LED.
     bool led_state;
     led_state = true;
@@ -83,10 +100,8 @@ int main(void)
     {
         // Set the onboard LED
         hw.SetLed(led_state);
-
         // Toggle the LED state for the next time around.
         led_state = !led_state;
-
         // Wait 500ms
         System::Delay(500);
     }
