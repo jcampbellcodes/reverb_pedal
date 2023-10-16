@@ -11,19 +11,97 @@ Oscillator osc;
 AdEnv      env;
 Metro      tick;
 
-static void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
-                          AudioHandle::InterleavingOutputBuffer out,
-                          size_t                                size)
+// static void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
+//                           AudioHandle::InterleavingOutputBuffer out,
+//                           size_t                                size)
+// {
+//     for(size_t i = 0; i < size; i += 2)
+//     {
+// 		float dry = 0.0f, send = 0.0f, wetl = 0.0f, wetr = 0.0f; // Effects Vars
+// 		float *out_left = &out[i];
+//         float *out_right = &out[i + 1];
+//         // if(tick.Process())
+//         // {
+//         //     env.Trigger();
+//         // }
+
+//         // float sig = in[i]; //env.Process() * osc.Process();
+//         // verb.Process(sig, sig, &out[i], &out[i + 1]);
+
+//         // get dry sample from the state of the voices
+//         dry  = in[i] * 0.5f; 
+//         // run an attenuated dry signal through the reverb
+//         send = dry * 0.45f;
+//         verb.Process(send, send, &wetl, &wetr);
+//         // sum the dry oscillator and processed reverb signal
+//         out_left[i]  = dry + wetl;
+//         out_right[i] = dry + wetr;
+//     }
+// }
+
+
+// void AudioCallback(AudioHandle::InputBuffer  in,
+//                    AudioHandle::OutputBuffer out,
+//                    size_t                    size)
+// {
+// 	// Assign Output Buffers
+//     float *out_left = out[0];
+//     float *out_right = out[1];
+//     float dry = 0.0f, send = 0.0f, wetl = 0.0f, wetr = 0.0f; // Effects Vars
+// 	for(size_t i = 0; i < size; i += 2)
+//     {
+// 		// float dry = 0.0f, send = 0.0f, wetl = 0.0f, wetr = 0.0f; // Effects Vars
+// 		// float *out_left = out[i];
+//         // float *out_right = out[i + 1];
+//         // if(tick.Process())
+//         // {
+//         //     env.Trigger();
+//         // }
+
+//         // float sig = in[i]; //env.Process() * osc.Process();
+//         // verb.Process(sig, sig, &out[i], &out[i + 1]);
+
+//         // get dry sample from the state of the voices
+//         dry  = (*in[i]) * 0.5f; 
+//         // run an attenuated dry signal through the reverb
+//         send = dry * 0.45f;
+//         verb.Process(send, send, &wetl, &wetr);
+//         // sum the dry oscillator and processed reverb signal
+//         out_left[i]  = dry + wetl;
+//         out_right[i] = dry + wetr;
+//     }
+// }
+
+
+void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
+              AudioHandle::InterleavingOutputBuffer out,
+              size_t                                size)
 {
+    float dryl, dryr, wetl, wetr, sendl, sendr;
+    //hw.ProcessDigitalControls();
+    // verb.SetFeedback(vtime.Process());
+    // verb.SetLpFreq(vfreq.Process());
+    // vsend.Process(); // Process Send to use later
+    //bypass = hw.switches[DaisyPetal::SW_5].Pressed();
+    // if(hw.switches[DaisyPetal::SW_1].RisingEdge())
+    //     bypass = !bypass;
     for(size_t i = 0; i < size; i += 2)
     {
-        if(tick.Process())
+        dryl  = in[i];
+        dryr  = in[i + 1];
+        sendl = dryl * 0.45; //vsend.Value();
+        sendr = dryr * 0.45; //vsend.Value();
+        verb.Process(sendl, sendr, &wetl, &wetr);
+        // if(bypass)
+        // {
+        //     out[i]     = in[i];     // left
+        //     out[i + 1] = in[i + 1]; // right
+        // }
+        // else
         {
-            env.Trigger();
+            out[i]     = dryl + wetl;
+            out[i + 1] = dryr + wetr;
         }
-
-        float sig = env.Process() * osc.Process();
-        verb.Process(sig, sig, &out[i], &out[i + 1]);
     }
 }
 
