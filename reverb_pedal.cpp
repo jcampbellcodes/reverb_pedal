@@ -11,8 +11,9 @@ Oscillator osc;
 AdEnv      env;
 Metro      tick;
 
-Parameter /*vtime, vfreq,*/ vsend;
+Parameter /*vtime, vfreq,*/ vtime, vsend;
 AnalogControl wetDryKnob;
+AnalogControl reverbTimeKnob;
 
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
               AudioHandle::InterleavingOutputBuffer out,
@@ -21,7 +22,7 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
 	vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
     //hw.ProcessDigitalControls();
-    // verb.SetFeedback(vtime.Process());
+    //verb.SetFeedback(vtime.Process());
     // verb.SetLpFreq(vfreq.Process());
     // vsend.Process(); // Process Send to use later
     //bypass = hw.switches[DaisyPetal::SW_5].Pressed();
@@ -81,10 +82,13 @@ int main(void)
     AdcChannelConfig adcConfig;
     //Configure pin 21 as an ADC input. This is where we'll read the knob.
     adcConfig.InitSingle(hw.GetPin(21));
+	//adcConfig.InitSingle(hw.GetPin(20));
     //Initialize the adc with the config we just made
     hw.adc.Init(&adcConfig, 1);
 
     wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
+	//reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
+	//vtime.Init(reverbTimeKnob, 0.6f, 0.999f, Parameter::LOGARITHMIC);
     vsend.Init(wetDryKnob, 0.0f, 1.0f, Parameter::LINEAR);
 
     //Start reading values
