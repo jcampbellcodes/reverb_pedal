@@ -19,7 +19,7 @@
     },
     {
       "cStandard": "c11",
-      "compilerPath": "/usr/local/bin/arm-none-eabi-g++",
+      "compilerPath": "/home/jcampbell/Developer/arm-gnu-toolchain-12.2.mpacbti-rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-g++",
       "cppStandard": "c++17",
       "defines": [
         "_DEBUG",
@@ -28,10 +28,10 @@
       ],
       "includePath": [
         "${workspaceFolder}/**",
-        "${workspaceFolder}/../DaisyExamples/libDaisy//**",
-        "${workspaceFolder}/../DaisyExamples/DaisySP//**"
+        "${workspaceFolder}/../DaisyExamples/libDaisy/**",
+        "${workspaceFolder}/../DaisyExamples/DaisySP/**"
       ],
-      "name": "macOS"
+      "name": "linux"
     }
   ],
   "version": 4

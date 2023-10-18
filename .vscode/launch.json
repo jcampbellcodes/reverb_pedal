@@ -17,7 +17,8 @@
         "init",
         "reset init"
       ],
-      "cortex-debug.armToolchainPath": "/usr/bin/",
+      "cortex-debug.armToolchainPath": "/home/jcampbell/Developer/arm-gnu-toolchain-12.2.mpacbti-rel1-x86_64-arm-none-eabi",
+      "cortex-debug.gdbPath":  "/home/jcampbell/Developer/arm-gnu-toolchain-12.2.mpacbti-rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gdb",
       "preLaunchTask": "build_all_debug",
       "preRestartCommands": [
         "load",
@@ -25,9 +26,12 @@
         "monitor reset"
       ],
       "request": "launch",
-      "runToMain": true,
+      "runToEntryPoint": "main",
       "servertype": "openocd",
-      "showDevDebugOutput": true,
+      "showDevDebugOutput": "both",
+      "armToolchainPath": "/home/jcampbell/Developer/arm-gnu-toolchain-12.2.mpacbti-rel1-x86_64-arm-none-eabi",
+
+      "gdbPath": "/home/jcampbell/Developer/arm-gnu-toolchain-12.2.mpacbti-rel1-x86_64-arm-none-eabi/bin/arm-none-eabi-gdb",
       "svdFile": "${workspaceRoot}/.vscode/STM32H750x.svd",
       "type": "cortex-debug"
     }

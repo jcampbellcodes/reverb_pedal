@@ -11,9 +11,10 @@ Oscillator osc;
 AdEnv      env;
 Metro      tick;
 
-Parameter /*vtime, vfreq,*/ vtime, vsend;
+Parameter vfreq, vtime, vsend;
 AnalogControl wetDryKnob;
 AnalogControl reverbTimeKnob;
+AnalogControl lpFreqKnob;
 
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
               AudioHandle::InterleavingOutputBuffer out,
@@ -22,9 +23,9 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
 	vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
     //hw.ProcessDigitalControls();
-    //verb.SetFeedback(vtime.Process());
-    // verb.SetLpFreq(vfreq.Process());
-    // vsend.Process(); // Process Send to use later
+    verb.SetFeedback(vtime.Process());
+    verb.SetLpFreq(vfreq.Process());
+    vsend.Process(); // Process Send to use later
     //bypass = hw.switches[DaisyPetal::SW_5].Pressed();
     // if(hw.switches[DaisyPetal::SW_1].RisingEdge())
     //     bypass = !bypass;
@@ -78,18 +79,20 @@ int main(void)
     osc.SetFreq(440.f);
     osc.SetWaveform(Oscillator::WAVE_TRI);
 
-    //This is our ADC configuration
-    AdcChannelConfig adcConfig;
-    //Configure pin 21 as an ADC input. This is where we'll read the knob.
-    adcConfig.InitSingle(hw.GetPin(21));
-	//adcConfig.InitSingle(hw.GetPin(20));
-    //Initialize the adc with the config we just made
-    hw.adc.Init(&adcConfig, 1);
+    // Create an array of two AdcChannelConfig objects
+    const int num_adc_channels = 3;
+    AdcChannelConfig adc_config[num_adc_channels];
+    adc_config[0].InitSingle(hw.GetPin(21));
+    adc_config[1].InitSingle(hw.GetPin(20));
+    adc_config[2].InitSingle(hw.GetPin(19));
+    hw.adc.Init(adc_config, num_adc_channels);
 
     wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
-	//reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
-	//vtime.Init(reverbTimeKnob, 0.6f, 0.999f, Parameter::LOGARITHMIC);
+	reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
+    lpFreqKnob.Init(hw.adc.GetPtr(2), sample_rate, false);
+	vtime.Init(reverbTimeKnob, 0.6f, 0.999f, Parameter::LOGARITHMIC);
     vsend.Init(wetDryKnob, 0.0f, 1.0f, Parameter::LINEAR);
+	vfreq.Init(lpFreqKnob, 500.0f, 20000.0f, Parameter::LOGARITHMIC);
 
     //Start reading values
     hw.adc.Start();
