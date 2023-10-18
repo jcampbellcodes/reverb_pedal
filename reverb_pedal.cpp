@@ -7,10 +7,6 @@ using namespace daisy;
 static DaisySeed hw;
 
 ReverbSc   verb;
-Oscillator osc;
-AdEnv      env;
-Metro      tick;
-
 Parameter vfreq, vtime, vsend;
 AnalogControl wetDryKnob;
 AnalogControl reverbTimeKnob;
@@ -22,7 +18,6 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
 {
 	vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
-    //hw.ProcessDigitalControls();
     verb.SetFeedback(vtime.Process());
     verb.SetLpFreq(vfreq.Process());
     vsend.Process(); // Process Send to use later
@@ -49,6 +44,14 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
     }
 }
 
+enum class ADCChannel
+{
+    WetDryKnob = 0,
+    ReverbTimeKnob,
+    LPFKnob,
+    NUM_CHANNELS
+};
+
 int main(void)
 {
     // initialize seed hardware and whitenoise daisysp module
@@ -60,32 +63,13 @@ int main(void)
 
     //setup reverb
     verb.Init(sample_rate);
-    verb.SetFeedback(0.9f);
-    verb.SetLpFreq(18000.0f);
-
-    //setup metro
-    tick.Init(1.f, sample_rate);
-
-    //setup envelope
-    env.Init(sample_rate);
-    env.SetTime(ADENV_SEG_ATTACK, .1f);
-    env.SetTime(ADENV_SEG_DECAY, .1f);
-    env.SetMax(1.f);
-    env.SetMin(0.f);
-    env.SetCurve(0.f); //linear
-
-    //setup oscillator
-    osc.Init(sample_rate);
-    osc.SetFreq(440.f);
-    osc.SetWaveform(Oscillator::WAVE_TRI);
 
     // Create an array of two AdcChannelConfig objects
-    const int num_adc_channels = 3;
-    AdcChannelConfig adc_config[num_adc_channels];
-    adc_config[0].InitSingle(hw.GetPin(21));
-    adc_config[1].InitSingle(hw.GetPin(20));
-    adc_config[2].InitSingle(hw.GetPin(19));
-    hw.adc.Init(adc_config, num_adc_channels);
+    AdcChannelConfig adc_config[static_cast<size_t>(ADCChannel::NUM_CHANNELS)];
+    adc_config[static_cast<size_t>(ADCChannel::WetDryKnob)].InitSingle(daisy::seed::A6); 
+    adc_config[static_cast<size_t>(ADCChannel::ReverbTimeKnob)].InitSingle(daisy::seed::A5);
+    adc_config[static_cast<size_t>(ADCChannel::LPFKnob)].InitSingle(daisy::seed::A4);
+    hw.adc.Init(adc_config, static_cast<size_t>(ADCChannel::NUM_CHANNELS));
 
     wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
 	reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
@@ -97,12 +81,12 @@ int main(void)
     //Start reading values
     hw.adc.Start();
 
+    // start callback
+    hw.StartAudio(AudioCallback);
+
 	// Declare a variable to store the state we want to set for the LED.
     bool led_state;
     led_state = true;
-
-    // start callback
-    hw.StartAudio(AudioCallback);
     for(;;)
     {
         // Set the onboard LED
