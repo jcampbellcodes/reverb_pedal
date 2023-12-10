@@ -11,6 +11,7 @@ Parameter vfreq, vtime, vsend;
 AnalogControl wetDryKnob;
 AnalogControl reverbTimeKnob;
 AnalogControl lpFreqKnob;
+bool isBypassed = true;
 
 void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
               AudioHandle::InterleavingOutputBuffer out,
@@ -21,22 +22,19 @@ void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
     verb.SetFeedback(vtime.Process());
     verb.SetLpFreq(vfreq.Process());
     vsend.Process(); // Process Send to use later
-    //bypass = hw.switches[DaisyPetal::SW_5].Pressed();
-    // if(hw.switches[DaisyPetal::SW_1].RisingEdge())
-    //     bypass = !bypass;
     for(size_t i = 0; i < size; i += 2)
     {
         dryl  = in[i];
-        dryr  = in[i + 1];
+        dryr  = in[i];
         sendl = dryl * vsend.Value();
         sendr = dryr * vsend.Value();
         verb.Process(sendl, sendr, &wetl, &wetr);
-        // if(bypass)
-        // {
-        //     out[i]     = in[i];     // left
-        //     out[i + 1] = in[i + 1]; // right
-        // }
-        // else
+        if(isBypassed)
+        {
+            out[i]     = in[i];     // left
+            out[i + 1] = in[i]; // right
+        }
+        else
         {
             out[i]     = dryl + wetl;
             out[i + 1] = dryr + wetr;
@@ -58,7 +56,7 @@ int main(void)
     float sample_rate;
     hw.Configure();
     hw.Init();
-    hw.SetAudioBlockSize(4);
+    hw.SetAudioBlockSize(1);
     sample_rate = hw.AudioSampleRate();
 
     //setup reverb
@@ -78,22 +76,38 @@ int main(void)
     vsend.Init(wetDryKnob, 0.0f, 1.0f, Parameter::LINEAR);
 	vfreq.Init(lpFreqKnob, 500.0f, 20000.0f, Parameter::LOGARITHMIC);
 
+
+    // Create our GPIO object
+    Switch bypassSwitch;
+    GPIO bypassLed;
+
+    // Initialize the GPIO object for our button */
+    bypassSwitch.Init(daisy::seed::D7, 1000);
+
+    // Initialize the GPIO object for our LED
+    bypassLed.Init(daisy::seed::D6, GPIO::Mode::OUTPUT);
+
     //Start reading values
     hw.adc.Start();
 
     // start callback
     hw.StartAudio(AudioCallback);
 
-	// Declare a variable to store the state we want to set for the LED.
-    bool led_state;
-    led_state = true;
-    for(;;)
+    bool lastBypass = isBypassed;
+    hw.SetLed(isBypassed);
+    bypassLed.Write(!isBypassed);
+    while (1)
     {
-        // Set the onboard LED
-        hw.SetLed(led_state);
-        // Toggle the LED state for the next time around.
-        led_state = !led_state;
-        // Wait 500ms
-        System::Delay(500);
+        bypassSwitch.Debounce();
+        // Handle bypass logic in the main loop
+        if (bypassSwitch.RisingEdge())
+        {
+            // Toggle the bypass state
+            isBypassed = !isBypassed;
+            bypassLed.Write(!isBypassed);
+            hw.SetLed(isBypassed);
+        }
+        // Your other non-audio-related code here
+        hw.DelayMs(10);
     }
 }
