@@ -4,33 +4,60 @@
 using namespace daisysp;
 using namespace daisy;
 
+// Uncomment the following line to enable peripherals (knobs, switches, etc.)
+// #define USE_PERIPHERALS
+
 static DaisySeed hw;
 
-ReverbSc   verb;
+ReverbSc verb;
+
+#ifdef USE_PERIPHERALS
 Parameter vfreq, vtime, vsend;
 AnalogControl wetDryKnob;
 AnalogControl reverbTimeKnob;
 AnalogControl lpFreqKnob;
 Switch bypassSwitch;
 dsy_gpio bypassLed;
-bool isBypassed = true;
+bool isBypassed = false;  // initial bypass state
+#else
+float vtime_value = 0.8f;  // Hardcoded reverb time
+float vsend_value = 0.5f;  // Hardcoded wet/dry mix
+float vfreq_value = 10000.0f; // Hardcoded low-pass filter frequency
+bool isBypassed = false;  // Hardcoded bypass state
+#endif
 
 void AudioCallback(AudioHandle::InputBuffer  in,
                    AudioHandle::OutputBuffer out,
                    size_t                    size)
 {
+#ifdef USE_PERIPHERALS
     vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
     verb.SetFeedback(vtime.Process());
     verb.SetLpFreq(vfreq.Process());
+#else
+    verb.SetFeedback(vtime_value);
+    verb.SetLpFreq(vfreq_value);
+#endif
+
     for(size_t i = 0; i < size; i++)
     {
-        dryl  = in[0][i];
-        dryr  = in[1][i];
-        sendl = dryl * vsend.Value();
-        sendr = dryr * vsend.Value();
+        float dryl = in[0][i];
+        float dryr = in[1][i];
+#ifdef USE_PERIPHERALS
+        float sendl = dryl * vsend.Value();
+        float sendr = dryr * vsend.Value();
+#else
+        float sendl = dryl * vsend_value;
+        float sendr = dryr * vsend_value;
+#endif
+        float wetl, wetr;
         verb.Process(sendl, sendr, &wetl, &wetr);
+#ifdef USE_PERIPHERALS
         if(isBypassed)
+#else
+        if(isBypassed)
+#endif
         {
             out[0][i] = dryl; // left
             out[1][i] = dryr; // right
@@ -43,14 +70,6 @@ void AudioCallback(AudioHandle::InputBuffer  in,
     }
 }
 
-enum class ADCChannel
-{
-    WetDryKnob = 0,
-    ReverbTimeKnob,
-    LPFKnob,
-    NUM_CHANNELS
-};
-
 int main(void)
 {
     // Initialize seed hardware
@@ -62,12 +81,13 @@ int main(void)
     // Setup reverb
     verb.Init(sample_rate);
 
+#ifdef USE_PERIPHERALS
     // Configure ADC channels
-    AdcChannelConfig adc_config[static_cast<size_t>(ADCChannel::NUM_CHANNELS)];
-    adc_config[static_cast<size_t>(ADCChannel::WetDryKnob)].InitSingle(seed::A6);
-    adc_config[static_cast<size_t>(ADCChannel::ReverbTimeKnob)].InitSingle(seed::A5);
-    adc_config[static_cast<size_t>(ADCChannel::LPFKnob)].InitSingle(seed::A4);
-    hw.adc.Init(adc_config, static_cast<size_t>(ADCChannel::NUM_CHANNELS));
+    AdcChannelConfig adc_config[3];
+    adc_config[0].InitSingle(seed::A6);
+    adc_config[1].InitSingle(seed::A5);
+    adc_config[2].InitSingle(seed::A4);
+    hw.adc.Init(adc_config, 3);
 
     // Initialize knobs
     wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
@@ -86,14 +106,17 @@ int main(void)
 
     // Start ADC and audio
     hw.adc.Start();
+#else
+    // Hardcoded bypass state
+    isBypassed = false;
+#endif
+
     hw.StartAudio(AudioCallback);
 
     // Main loop
-    bool lastBypass = isBypassed;
-    hw.SetLed(isBypassed);
-    dsy_gpio_write(&bypassLed, !isBypassed);
     while(1)
     {
+#ifdef USE_PERIPHERALS
         bypassSwitch.Debounce();
         // Handle bypass logic in the main loop
         if(bypassSwitch.RisingEdge())
@@ -104,5 +127,9 @@ int main(void)
             hw.SetLed(isBypassed);
         }
         hw.DelayMs(10);
+#else
+        // No peripherals, just delay to keep the loop running
+        hw.DelayMs(10);
+#endif
     }
 }
