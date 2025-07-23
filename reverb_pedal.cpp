@@ -11,33 +11,34 @@ Parameter vfreq, vtime, vsend;
 AnalogControl wetDryKnob;
 AnalogControl reverbTimeKnob;
 AnalogControl lpFreqKnob;
+Switch bypassSwitch;
+dsy_gpio bypassLed;
 bool isBypassed = true;
 
-void AudioCallback(AudioHandle::InterleavingInputBuffer  in,
-              AudioHandle::InterleavingOutputBuffer out,
-              size_t                                size)
+void AudioCallback(AudioHandle::InputBuffer  in,
+                   AudioHandle::OutputBuffer out,
+                   size_t                    size)
 {
-	vsend.Process();
+    vsend.Process();
     float dryl, dryr, wetl, wetr, sendl, sendr;
     verb.SetFeedback(vtime.Process());
     verb.SetLpFreq(vfreq.Process());
-    vsend.Process(); // Process Send to use later
-    for(size_t i = 0; i < size; i += 2)
+    for(size_t i = 0; i < size; i++)
     {
-        dryl  = in[i];
-        dryr  = in[i];
+        dryl  = in[0][i];
+        dryr  = in[1][i];
         sendl = dryl * vsend.Value();
         sendr = dryr * vsend.Value();
         verb.Process(sendl, sendr, &wetl, &wetr);
         if(isBypassed)
         {
-            out[i]     = in[i];     // left
-            out[i + 1] = in[i]; // right
+            out[0][i] = dryl; // left
+            out[1][i] = dryr; // right
         }
         else
         {
-            out[i]     = dryl + wetl;
-            out[i + 1] = dryr + wetr;
+            out[0][i] = dryl + wetl;
+            out[1][i] = dryr + wetr;
         }
     }
 }
@@ -52,62 +53,56 @@ enum class ADCChannel
 
 int main(void)
 {
-    // initialize seed hardware and whitenoise daisysp module
-    float sample_rate;
+    // Initialize seed hardware
     hw.Configure();
     hw.Init();
-    hw.SetAudioBlockSize(1);
-    sample_rate = hw.AudioSampleRate();
+    hw.SetAudioBlockSize(48); // Set block size to 48 samples
+    float sample_rate = hw.AudioSampleRate();
 
-    //setup reverb
+    // Setup reverb
     verb.Init(sample_rate);
 
-    // Create an array of two AdcChannelConfig objects
+    // Configure ADC channels
     AdcChannelConfig adc_config[static_cast<size_t>(ADCChannel::NUM_CHANNELS)];
-    adc_config[static_cast<size_t>(ADCChannel::WetDryKnob)].InitSingle(daisy::seed::A6); 
-    adc_config[static_cast<size_t>(ADCChannel::ReverbTimeKnob)].InitSingle(daisy::seed::A5);
-    adc_config[static_cast<size_t>(ADCChannel::LPFKnob)].InitSingle(daisy::seed::A4);
+    adc_config[static_cast<size_t>(ADCChannel::WetDryKnob)].InitSingle(seed::A6);
+    adc_config[static_cast<size_t>(ADCChannel::ReverbTimeKnob)].InitSingle(seed::A5);
+    adc_config[static_cast<size_t>(ADCChannel::LPFKnob)].InitSingle(seed::A4);
     hw.adc.Init(adc_config, static_cast<size_t>(ADCChannel::NUM_CHANNELS));
 
+    // Initialize knobs
     wetDryKnob.Init(hw.adc.GetPtr(0), sample_rate, false);
-	reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
+    reverbTimeKnob.Init(hw.adc.GetPtr(1), sample_rate, false);
     lpFreqKnob.Init(hw.adc.GetPtr(2), sample_rate, false);
-	vtime.Init(reverbTimeKnob, 0.6f, 0.999f, Parameter::LOGARITHMIC);
+    vtime.Init(reverbTimeKnob, 0.6f, 0.999f, Parameter::LOGARITHMIC);
     vsend.Init(wetDryKnob, 0.0f, 1.0f, Parameter::LINEAR);
-	vfreq.Init(lpFreqKnob, 500.0f, 20000.0f, Parameter::LOGARITHMIC);
+    vfreq.Init(lpFreqKnob, 500.0f, 20000.0f, Parameter::LOGARITHMIC);
 
+    // Initialize bypass switch and LED
+    bypassSwitch.Init(seed::D7, 1000);
+    bypassLed.pin = seed::D6;
+    bypassLed.mode = DSY_GPIO_MODE_OUTPUT_PP;
+    bypassLed.pull = DSY_GPIO_NOPULL;
+    dsy_gpio_init(&bypassLed);
 
-    // Create our GPIO object
-    Switch bypassSwitch;
-    GPIO bypassLed;
-
-    // Initialize the GPIO object for our button */
-    bypassSwitch.Init(daisy::seed::D7, 1000);
-
-    // Initialize the GPIO object for our LED
-    bypassLed.Init(daisy::seed::D6, GPIO::Mode::OUTPUT);
-
-    //Start reading values
+    // Start ADC and audio
     hw.adc.Start();
-
-    // start callback
     hw.StartAudio(AudioCallback);
 
+    // Main loop
     bool lastBypass = isBypassed;
     hw.SetLed(isBypassed);
-    bypassLed.Write(!isBypassed);
-    while (1)
+    dsy_gpio_write(&bypassLed, !isBypassed);
+    while(1)
     {
         bypassSwitch.Debounce();
         // Handle bypass logic in the main loop
-        if (bypassSwitch.RisingEdge())
+        if(bypassSwitch.RisingEdge())
         {
             // Toggle the bypass state
             isBypassed = !isBypassed;
-            bypassLed.Write(!isBypassed);
+            dsy_gpio_write(&bypassLed, !isBypassed);
             hw.SetLed(isBypassed);
         }
-        // Your other non-audio-related code here
         hw.DelayMs(10);
     }
 }
